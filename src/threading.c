@@ -483,8 +483,8 @@ static void jl_delete_thread(void *value) JL_NOTSAFEPOINT_ENTER
 //// the other threads time to fail and emit their failure message
 //__attribute__((destructor)) static void _waitthreaddeath(void) { sleep(1); }
 
-JL_DLLEXPORT jl_mutex_t jl_codegen_lock;
-jl_mutex_t typecache_lock;
+JL_DLLEXPORT jl_spin_mutex_t jl_codegen_lock;
+jl_spin_mutex_t typecache_lock;
 
 JL_DLLEXPORT ssize_t jl_tls_offset = -1;
 
@@ -730,14 +730,14 @@ JL_DLLEXPORT void jl_exit_threaded_region(void)
 
 // Profiling stubs
 
-void _jl_mutex_init(jl_mutex_t *lock, const char *name) JL_NOTSAFEPOINT
+void _jl_mutex_init(jl_spin_mutex_t *lock, const char *name) JL_NOTSAFEPOINT
 {
     jl_atomic_store_relaxed(&lock->owner, (jl_task_t*)NULL);
     lock->count = 0;
     jl_profile_lock_init(lock, name);
 }
 
-void _jl_mutex_wait(jl_task_t *self, jl_mutex_t *lock, int safepoint)
+void _jl_mutex_wait(jl_task_t *self, jl_spin_mutex_t *lock, int safepoint)
 {
     jl_task_t *owner = jl_atomic_load_relaxed(&lock->owner);
     if (owner == self) {
@@ -767,7 +767,7 @@ void _jl_mutex_wait(jl_task_t *self, jl_mutex_t *lock, int safepoint)
     }
 }
 
-static void jl_lock_frame_push(jl_task_t *self, jl_mutex_t *lock)
+static void jl_lock_frame_push(jl_task_t *self, jl_spin_mutex_t *lock)
 {
     jl_ptls_t ptls = self->ptls;
     small_arraylist_t *locks = &ptls->locks;
@@ -788,14 +788,14 @@ static void jl_lock_frame_pop(jl_task_t *self)
     ptls->locks.len--;
 }
 
-void _jl_mutex_lock(jl_task_t *self, jl_mutex_t *lock)
+void _jl_mutex_lock(jl_task_t *self, jl_spin_mutex_t *lock)
 {
     JL_SIGATOMIC_BEGIN_self();
     _jl_mutex_wait(self, lock, 1);
     jl_lock_frame_push(self, lock);
 }
 
-int _jl_mutex_trylock_nogc(jl_task_t *self, jl_mutex_t *lock)
+int _jl_mutex_trylock_nogc(jl_task_t *self, jl_spin_mutex_t *lock)
 {
     jl_task_t *owner = jl_atomic_load_acquire(&lock->owner);
     if (owner == self) {
@@ -809,7 +809,7 @@ int _jl_mutex_trylock_nogc(jl_task_t *self, jl_mutex_t *lock)
     return 0;
 }
 
-int _jl_mutex_trylock(jl_task_t *self, jl_mutex_t *lock)
+int _jl_mutex_trylock(jl_task_t *self, jl_spin_mutex_t *lock)
 {
     int got = _jl_mutex_trylock_nogc(self, lock);
     if (got) {
@@ -819,7 +819,7 @@ int _jl_mutex_trylock(jl_task_t *self, jl_mutex_t *lock)
     return got;
 }
 
-void _jl_mutex_unlock_nogc(jl_mutex_t *lock)
+void _jl_mutex_unlock_nogc(jl_spin_mutex_t *lock)
 {
 #ifndef __clang_gcanalyzer__
     assert(jl_atomic_load_relaxed(&lock->owner) == jl_current_task &&
@@ -839,7 +839,7 @@ void _jl_mutex_unlock_nogc(jl_mutex_t *lock)
 #endif
 }
 
-void _jl_mutex_unlock(jl_task_t *self, jl_mutex_t *lock)
+void _jl_mutex_unlock(jl_task_t *self, jl_spin_mutex_t *lock)
 {
     _jl_mutex_unlock_nogc(lock);
     jl_lock_frame_pop(self);
