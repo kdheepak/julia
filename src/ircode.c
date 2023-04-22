@@ -761,7 +761,7 @@ static jl_value_t *jl_decode_value(jl_ircode_state *s) JL_GC_DISABLED
 JL_DLLEXPORT jl_array_t *jl_compress_ir(jl_method_t *m, jl_code_info_t *code)
 {
     JL_TIMING(AST_COMPRESS, AST_COMPRESS);
-    JL_LOCK(&m->writelock); // protect the roots array (Might GC)
+    JL_SPIN_LOCK(&m->writelock); // protect the roots array (Might GC)
     assert(jl_is_method(m));
     assert(jl_is_code_info(code));
     ios_t dest;
@@ -845,7 +845,7 @@ JL_DLLEXPORT jl_array_t *jl_compress_ir(jl_method_t *m, jl_code_info_t *code)
     }
     JL_GC_PUSH1(&v);
     jl_gc_enable(en);
-    JL_UNLOCK(&m->writelock); // Might GC
+    JL_SPIN_UNLOCK(&m->writelock); // Might GC
     JL_GC_POP();
 
     return v;
@@ -856,7 +856,7 @@ JL_DLLEXPORT jl_code_info_t *jl_uncompress_ir(jl_method_t *m, jl_code_instance_t
     if (jl_is_code_info(data))
         return (jl_code_info_t*)data;
     JL_TIMING(AST_UNCOMPRESS, AST_UNCOMPRESS);
-    JL_LOCK(&m->writelock); // protect the roots array (Might GC)
+    JL_SPIN_LOCK(&m->writelock); // protect the roots array (Might GC)
     assert(jl_is_method(m));
     assert(jl_typeis(data, jl_array_uint8_type));
     size_t i;
@@ -924,7 +924,7 @@ JL_DLLEXPORT jl_code_info_t *jl_uncompress_ir(jl_method_t *m, jl_code_instance_t
     ios_close(s.s);
     JL_GC_PUSH1(&code);
     jl_gc_enable(en);
-    JL_UNLOCK(&m->writelock); // Might GC
+    JL_SPIN_UNLOCK(&m->writelock); // Might GC
     JL_GC_POP();
     if (metadata) {
         code->min_world = metadata->min_world;

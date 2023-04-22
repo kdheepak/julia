@@ -39,7 +39,7 @@ void *jl_get_library_(const char *f_lib, int throw_err)
     if (f_lib == JL_LIBJULIA_DL_LIBNAME)
         return jl_libjulia_handle;
 #endif
-    JL_LOCK(&libmap_lock);
+    JL_SPIN_LOCK(&libmap_lock);
     // This is the only operation we do on the map, which doesn't invalidate
     // any references or iterators.
     void **map_slot = &libMap[f_lib];
@@ -49,7 +49,7 @@ void *jl_get_library_(const char *f_lib, int throw_err)
         if (hnd != NULL)
             *map_slot = hnd;
     }
-    JL_UNLOCK(&libmap_lock);
+    JL_SPIN_UNLOCK(&libmap_lock);
     return hnd;
 }
 
@@ -362,6 +362,6 @@ JL_GCC_IGNORE_STOP
 
 void jl_init_runtime_ccall(void)
 {
-    JL_MUTEX_INIT(&libmap_lock, "libmap_lock");
+    JL_SPIN_MUTEX_INIT(&libmap_lock, "libmap_lock");
     uv_mutex_init(&trampoline_lock);
 }
