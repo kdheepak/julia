@@ -9090,9 +9090,15 @@ extern "C" void jl_init_llvm(void)
         cl::ProvidePositionalOption(clopt, "true", 1);
 #else
         cl::ProvidePositionalOption(clopt, "false", 1);
-#endif
+#endif // JL_LLVM_OPAQUE_POINTERS
     }
-#endif
+#ifdef JL_DEBUG_BUILD
+    clopt = llvmopts.lookup("verify-memoryssa");
+    if (clopt && clopt->getNumOccurrences() == 0) {
+        cl::ProvidePositionalOption(clopt, "true", 1);
+    }
+#endif // JL_DEBUG_BUILD
+#endif // JL_LLVM_VERSION
 
     jl_ExecutionEngine = new JuliaOJIT();
 
